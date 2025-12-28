@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>Test mapy Google 1.1.4</title>
+<title>Test mapy Google 1.1.5</title>
 <style>
   #map { width:100%; height:100vh; }
   body, html { margin:0; padding:0; height:100%; }
@@ -10,10 +10,102 @@
 </head>
 <body>
 
-<h2>Test mapy Google 1.1.5 – dwaj użytkownicy</h2>
+<h2>Test mapy Google 1.1.6 – dwaj użytkownicy</h2>
 <div id="map"></div>
 
 <script>
+
+// 1. Konfiguracja Firebase
+const firebaseConfig = {
+    apiKey: "TWÓJ_FIREBASE_API_KEY",
+    authDomain: "TWÓJ_PROJEKT.firebaseapp.com",
+    databaseURL: "https://TWÓJ_PROJEKT.firebaseio.com",
+    projectId: "TWÓJ_PROJEKT",
+    storageBucket: "TWÓJ_PROJEKT.appspot.com",
+    messagingSenderId: "xxxx",
+    appId: "xxxx"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// 2. Unikalne ID użytkownika (może być losowe lub ręczne)
+const userId = prompt("Podaj ID użytkownika: user1 lub user2");
+
+// 3. Funkcja wysyłania pozycji co X sekund
+function sendPosition(lat, lng) {
+    db.ref('locations/' + userId).set({
+        lat: lat,
+        lng: lng,
+        timestamp: Date.now()
+    });
+}
+
+// 4. Funkcja pobierania pozycji drugiego użytkownika
+function watchOtherUser() {
+    const otherUser = userId === "user1" ? "user2" : "user1";
+    db.ref('locations/' + otherUser).on('value', (snapshot) => {
+        const data = snapshot.val();
+        if(data && window.map) {
+            // usuń stary marker jeśli istnieje
+            if(window.otherMarker) window.otherMarker.setMap(null);
+
+            window.otherMarker = new google.maps.Marker({
+                position: {lat: data.lat, lng: data.lng},
+                map: window.map,
+                title: "Drugi użytkownik"
+            });
+
+            // rysowanie wspólnego odcinka
+            if(window.userMarker) {
+                if(window.poly) window.poly.setMap(null);
+                window.poly = new google.maps.Polyline({
+                    path: [window.userMarker.getPosition(), window.otherMarker.getPosition()],
+                    geodesic: true,
+                    strokeColor: "#FF0000",
+                    strokeOpacity: 1.0,
+                    strokeWeight: 4,
+                    map: window.map
+                });
+            }
+        }
+    });
+}
+
+// 5. Integracja z mapą
+function initMap() {
+    window.map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 12,
+        center: { lat: 51.7592, lng: 19.4560 }
+    });
+
+    if(navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            const pos = {lat: position.coords.latitude, lng: position.coords.longitude};
+            window.map.setCenter(pos);
+
+            window.userMarker = new google.maps.Marker({
+                position: pos,
+                map: window.map,
+                title: "Ty"
+            });
+
+            sendPosition(pos.lat, pos.lng);
+            watchOtherUser();
+
+            // aktualizacja pozycji co 5 sekund
+            setInterval(() => {
+                navigator.geolocation.getCurrentPosition((p) => {
+                    const newPos = {lat: p.coords.latitude, lng: p.coords.longitude};
+                    window.userMarker.setPosition(newPos);
+                    sendPosition(newPos.lat, newPos.lng);
+                });
+            }, 5000);
+
+        }, () => { alert("Nie udało się pobrać lokalizacji."); });
+    }
+}
+
 function initMap() {
     const map = new google.maps.Map(document.getElementById("map"), {
         zoom: 12,
@@ -38,7 +130,7 @@ function initMap() {
                 map.setCenter(user1);
 
                 // --- Użytkownik 2: symulacja (np. inny telefon) ---
-                const user2 = { lat: user1.lat + 0.01, lng: user1.lng + 0.01 }; // drobna różnica dla testu
+                const user2 = { lat: user1.lat - 0.01, lng: user1.lng - 0.01 }; // drobna różnica dla testu
 
                 new google.maps.Marker({
                     position: user2,
@@ -75,10 +167,15 @@ function initMap() {
 
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDoDGbQRTKYV1T1isARxO1e5UyLZqMJrM&callback=initMap" async defer></script>
 
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  
 </body>
 </html>
 
    
+
 
 
 
