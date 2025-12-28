@@ -2,27 +2,32 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>Mapa – test</title>
+    <title>Test mapy Google 1.1.3</title>
     <style>
+        /* Mapa zajmuje całą wysokość ekranu */
         #map {
             width: 100%;
-            height: 90vh;
+            height: 100vh;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
         }
     </style>
 </head>
 <body>
 
-<h2>Test mapy Google  1.1.2</h2>
+<h2>Test mapy Google 1.1.3</h2>
 <div id="map"></div>
 
 <script>
 function initMap() {
     const map = new google.maps.Map(document.getElementById("map"), {
         zoom: 12,
-        center: { lat: 51.7592, lng: 19.4560 } // domyślne centrum Łódź
+        center: { lat: 51.7592, lng: 19.4560 } // domyślne centrum mapy: Łódź
     });
 
-    // Sprawdzenie geolokalizacji
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (position) => {
@@ -30,13 +35,12 @@ function initMap() {
                     lat: position.coords.latitude,
                     lng: position.coords.longitude
                 };
-                // Centrum mapy na Twoją lokalizację
                 map.setCenter(pos);
 
-                // Dodanie markera
-                new google.maps.Marker({
-                    position: pos,
+                // nowy marker – AdvancedMarkerElement
+                new google.maps.marker.AdvancedMarkerElement({
                     map: map,
+                    position: pos,
                     title: "Twoja lokalizacja"
                 });
             },
@@ -48,18 +52,12 @@ function initMap() {
         alert("Twoja przeglądarka nie wspiera geolokalizacji.");
     }
 }
-
 </script>
 
 <script
-  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDoDGbQRTKYV1T1isARxO1e5UyLZqMJrM&callback=initMap"
-  async
-  defer>
+    src="https://maps.googleapis.com/maps/api/js?key=TWÓJ_KLUCZ&callback=initMap"
+    async defer>
 </script>
 
 </body>
 </html>
-
-
-
-
