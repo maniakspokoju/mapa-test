@@ -1,22 +1,35 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<title>Test mapy Google 1.1.5</title>
-<style>
-  #map { width:100%; height:100vh; }
-  body, html { margin:0; padding:0; height:100%; }
-</style>
+    <meta charset="UTF-8">
+    <title>Test mapy Google</title>
+    <style>
+        /* Mapa zajmuje całą wysokość ekranu */
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
 
-<h2>Test mapy Google 1.1.7 – dwaj użytkownicy</h2>
+<h2>Test mapy Google 1.1.8</h2>
 <div id="map"></div>
 
-<script>
+    <!-- Google Maps JS -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDoDGbQRTKYV1T1isARxO1e5UyLZqMJrM&callback=initMap&v=beta&libraries=marker" async defer></script>
+    <!-- Firebase JS -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-// 1. Konfiguracja Firebase
-  const firebaseConfig = {
+    <script>
+    // 1. Firebase konfiguracja
+     const firebaseConfig = {
     apiKey: "AIzaSyCob8E-nwXrsRIIS9vTZA11_ltmR5ncYZk",
     authDomain: "crossway-ed6fd.firebaseapp.com",
     projectId: "crossway-ed6fd",
@@ -25,156 +38,116 @@
     appId: "1:735163556486:web:a8e5e4f666cfeda934e707",
     measurementId: "G-EMP8CK82RG"
   };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+    // 2. ID użytkownika (prompt)
+    const userId = prompt("Podaj swoje ID: user1 lub user2");
 
-// 2. Unikalne ID użytkownika (może być losowe lub ręczne)
-const userId = prompt("Podaj ID użytkownika: user1 lub user2");
+    // zmienne globalne
+    let map, userMarker, otherMarker, poly;
 
-// 3. Funkcja wysyłania pozycji co X sekund
-function sendPosition(lat, lng) {
-    db.ref('locations/' + userId).set({
-        lat: lat,
-        lng: lng,
-        timestamp: Date.now()
-    });
-}
+    // 3. Funkcja wysyłania pozycji do Firebase
+    function sendPosition(lat, lng) {
+        db.ref('locations/' + userId).set({
+            lat: lat,
+            lng: lng,
+            timestamp: Date.now()
+        });
+    }
 
-// 4. Funkcja pobierania pozycji drugiego użytkownika
-function watchOtherUser() {
-    const otherUser = userId === "user1" ? "user2" : "user1";
-    db.ref('locations/' + otherUser).on('value', (snapshot) => {
-        const data = snapshot.val();
-        if(data && window.map) {
-            // usuń stary marker jeśli istnieje
-            if(window.otherMarker) window.otherMarker.setMap(null);
+    // 4. Funkcja nasłuchiwania drugiego użytkownika
+    function watchOtherUser() {
+        const otherUser = (userId === "user1") ? "user2" : "user1";
+        db.ref('locations/' + otherUser).on('value', snapshot => {
+            const data = snapshot.val();
+            if(data && map) {
+                // usuń stary marker jeśli istnieje
+                if(otherMarker) otherMarker.setMap(null);
 
-            window.otherMarker = new google.maps.Marker({
-                position: {lat: data.lat, lng: data.lng},
-                map: window.map,
-                title: "Drugi użytkownik"
-            });
-
-            // rysowanie wspólnego odcinka
-            if(window.userMarker) {
-                if(window.poly) window.poly.setMap(null);
-                window.poly = new google.maps.Polyline({
-                    path: [window.userMarker.getPosition(), window.otherMarker.getPosition()],
-                    geodesic: true,
-                    strokeColor: "#FF0000",
-                    strokeOpacity: 1.0,
-                    strokeWeight: 4,
-                    map: window.map
+                otherMarker = new google.maps.Marker({
+                    position: {lat: data.lat, lng: data.lng},
+                    map: map,
+                    title: "Drugi użytkownik"
                 });
+
+                // rysowanie wspólnego odcinka
+                if(userMarker) {
+                    if(poly) poly.setMap(null);
+                    poly = new google.maps.Polyline({
+                        path: [userMarker.getPosition(), otherMarker.getPosition()],
+                        geodesic: true,
+                        strokeColor: "#FF0000",
+                        strokeOpacity: 1.0,
+                        strokeWeight: 4,
+                        map: map
+                    });
+                }
             }
-        }
-    });
-}
+        });
+    }
 
-// 5. Integracja z mapą
-function initMap() {
-    window.map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 12,
-        center: { lat: 51.7592, lng: 19.4560 }
-    });
+    // 5. Inicjalizacja mapy
+    function initMap() {
+        const defaultPos = { lat: 52.106247, lng: 19.944756 }; // Łowicz
 
-    if(navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const pos = {lat: position.coords.latitude, lng: position.coords.longitude};
-            window.map.setCenter(pos);
+        map = new google.maps.Map(document.getElementById("map"), {
+            zoom: 14,
+            center: defaultPos
+        });
 
-            window.userMarker = new google.maps.Marker({
-                position: pos,
-                map: window.map,
-                title: "Ty"
+        // sprawdzenie geolokalizacji
+        if(navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                const pos = {lat: position.coords.latitude, lng: position.coords.longitude};
+                map.setCenter(pos);
+
+                userMarker = new google.maps.Marker({
+                    position: pos,
+                    map: map,
+                    title: "Ty"
+                });
+
+                sendPosition(pos.lat, pos.lng);
+                watchOtherUser();
+
+                // aktualizacja pozycji co 5 sekund
+                setInterval(() => {
+                    navigator.geolocation.getCurrentPosition(p => {
+                        const newPos = {lat: p.coords.latitude, lng: p.coords.longitude};
+                        userMarker.setPosition(newPos);
+                        sendPosition(newPos.lat, newPos.lng);
+                    });
+                }, 5000);
+
+            }, () => {
+                // jeśli brak zgody na geolokalizację → używamy domyślnej
+                userMarker = new google.maps.Marker({
+                    position: defaultPos,
+                    map: map,
+                    title: "Ty (domyślna lokalizacja)"
+                });
+                sendPosition(defaultPos.lat, defaultPos.lng);
+                watchOtherUser();
             });
-
-            sendPosition(pos.lat, pos.lng);
+        } else {
+            // jeśli brak wsparcia geolokalizacji → używamy domyślnej
+            userMarker = new google.maps.Marker({
+                position: defaultPos,
+                map: map,
+                title: "Ty (domyślna lokalizacja)"
+            });
+            sendPosition(defaultPos.lat, defaultPos.lng);
             watchOtherUser();
-
-            // aktualizacja pozycji co 5 sekund
-            setInterval(() => {
-                navigator.geolocation.getCurrentPosition((p) => {
-                    const newPos = {lat: p.coords.latitude, lng: p.coords.longitude};
-                    window.userMarker.setPosition(newPos);
-                    sendPosition(newPos.lat, newPos.lng);
-                });
-            }, 5000);
-
-        }, () => { alert("Nie udało się pobrać lokalizacji."); });
+        }
     }
-}
-
-function initMap() {
-    const map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 12,
-        center: { lat: 51.7592, lng: 19.4560 } // domyślnie Łódź
-    });
-
-    // --- Użytkownik 1: Twoja lokalizacja ---
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const user1 = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
-                };
-
-                new google.maps.Marker({
-                    position: user1,
-                    map: map,
-                    title: "Ty (Użytkownik 1)"
-                });
-
-                map.setCenter(user1);
-
-                // --- Użytkownik 2: symulacja (np. inny telefon) ---
-                const user2 = { lat: user1.lat - 0.01, lng: user1.lng - 0.01 }; // drobna różnica dla testu
-
-                new google.maps.Marker({
-                    position: user2,
-                    map: map,
-                    title: "Użytkownik 2"
-                });
-                
-//src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDoDGbQRTKYV1T1isARxO1e5UyLZqMJrM&callback=initMap&v=beta&libraries=marker"
-  //  async defer>
-                
-                // --- Rysowanie wspólnego odcinka trasy ---
-                const wspolnaTrasa = [
-                    user1,
-                    { lat: (user1.lat + user2.lat)/2, lng: (user1.lng + user2.lng)/2 },
-                    user2
-                ];
-
-                const wspolnaLinia = new google.maps.Polyline({
-                    path: wspolnaTrasa,
-                    geodesic: true,
-                    strokeColor: "#FF0000",
-                    strokeOpacity: 1.0,
-                    strokeWeight: 4,
-                    map: map
-                });
-            },
-            () => { alert("Nie udało się pobrać lokalizacji."); }
-        );
-    } else {
-        alert("Twoja przeglądarka nie wspiera geolokalizacji.");
-    }
-}
-</script>
-
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDoDGbQRTKYV1T1isARxO1e5UyLZqMJrM&callback=initMap" async defer></script>
-
-<!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  
+    </script>
 </body>
 </html>
 
+
    
+
 
 
 
