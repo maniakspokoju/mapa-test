@@ -18,7 +18,7 @@
 </head>
 <body>
 
-<h2>Test mapy Google 1.1.9</h2>
+<h2>Test mapy Google 1.2.0</h2>
 <div id="map"></div>
 
     <!-- Google Maps JS -->
@@ -40,9 +40,9 @@
   measurementId: "G-EMP8CK82RG"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// Initialize Firebase (compat)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
     // 2. ID użytkownika (prompt)
     const userId = prompt("Podaj swoje ID: user1 lub user2");
 
@@ -149,6 +149,7 @@ const analytics = getAnalytics(app);
 
 
    
+
 
 
 
