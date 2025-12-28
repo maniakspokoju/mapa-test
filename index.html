@@ -18,7 +18,7 @@
 </head>
 <body>
 
-<h2>Test mapy Google 1.1.8</h2>
+<h2>Test mapy Google 1.1.9</h2>
 <div id="map"></div>
 
     <!-- Google Maps JS -->
@@ -29,18 +29,20 @@
 
     <script>
     // 1. Firebase konfiguracja
-     const firebaseConfig = {
-    apiKey: "AIzaSyCob8E-nwXrsRIIS9vTZA11_ltmR5ncYZk",
-    authDomain: "crossway-ed6fd.firebaseapp.com",
-    projectId: "crossway-ed6fd",
-    storageBucket: "crossway-ed6fd.firebasestorage.app",
-    messagingSenderId: "735163556486",
-    appId: "1:735163556486:web:a8e5e4f666cfeda934e707",
-    measurementId: "G-EMP8CK82RG"
-  };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    const firebaseConfig = {
+  apiKey: "AIzaSyCob8E-nwXrsRIIS9vTZA11_ltmR5ncYZk",
+  authDomain: "crossway-ed6fd.firebaseapp.com",
+  databaseURL: "https://crossway-ed6fd-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "crossway-ed6fd",
+  storageBucket: "crossway-ed6fd.firebasestorage.app",
+  messagingSenderId: "735163556486",
+  appId: "1:735163556486:web:a8e5e4f666cfeda934e707",
+  measurementId: "G-EMP8CK82RG"
+};
 
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
     // 2. ID użytkownika (prompt)
     const userId = prompt("Podaj swoje ID: user1 lub user2");
 
@@ -147,6 +149,7 @@
 
 
    
+
 
 
 
