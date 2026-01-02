@@ -1,148 +1,161 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Test mapy Google</title>
-    <style>
-        /* Mapa zajmuje całą wysokość ekranu */
-        #map {
-            width: 100%;
-            height: 100vh;
-        }
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-        }
-    </style>
+  <title>D4.a – Trasy Google (Łowicz)</title>
+  <meta charset="utf-8" />
+  <style>
+    #map { height: 100vh; width: 100%; }
+  </style>
+
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDoDGbQRTKYV1T1isARxO1e5UyLZqMJrM&callback=initMap"
+    async
+    defer>
+  </script>
+    <h3>Laboratorium: 1</h3>
+
 </head>
 <body>
 
-<h2>Test mapy Google 1.2.0</h2>
 <div id="map"></div>
 
-    <!-- Google Maps JS -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDoDGbQRTKYV1T1isARxO1e5UyLZqMJrM&callback=initMap&v=beta&libraries=marker" async defer></script>
-    <!-- Firebase JS -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+let map;
+let driverPoints = [];
+let passengerPoints = [];
 
-    <script>
-    // 1. Firebase konfiguracja
-    const firebaseConfig = {
-  apiKey: "AIzaSyCob8E-nwXrsRIIS9vTZA11_ltmR5ncYZk",
-  authDomain: "crossway-ed6fd.firebaseapp.com",
-  databaseURL: "https://crossway-ed6fd-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "crossway-ed6fd",
-  storageBucket: "crossway-ed6fd.firebasestorage.app",
-  messagingSenderId: "735163556486",
-  appId: "1:735163556486:web:a8e5e4f666cfeda934e707",
-  measurementId: "G-EMP8CK82RG"
-};
+// ================== MATEMATYKA ==================
 
-// Initialize Firebase (compat)
-firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-    // 2. ID użytkownika (prompt)
-    const userId = prompt("Podaj swoje ID: user1 lub user2");
+function haversine(a, b) {
+  const R = 6371000;
+  const toRad = x => x * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
 
-    // zmienne globalne
-    let map, userMarker, otherMarker, poly;
+function distanceToSegment(p, v, w) {
+  const toRad = x => x * Math.PI / 180;
+  const lat1 = toRad(v.lat), lng1 = toRad(v.lng);
+  const lat2 = toRad(w.lat), lng2 = toRad(w.lng);
+  const latP = toRad(p.lat), lngP = toRad(p.lng);
 
-    // 3. Funkcja wysyłania pozycji do Firebase
-    function sendPosition(lat, lng) {
-        db.ref('locations/' + userId).set({
-            lat: lat,
-            lng: lng,
-            timestamp: Date.now()
-        });
+  const dLat = lat2 - lat1;
+  const dLng = lng2 - lng1;
+
+  if (dLat === 0 && dLng === 0) return haversine(v, p);
+
+  const t = Math.max(0, Math.min(1,
+    ((latP - lat1) * dLat + (lngP - lng1) * dLng) /
+    (dLat * dLat + dLng * dLng)
+  ));
+
+  const proj = {
+    lat: v.lat + t * (w.lat - v.lat),
+    lng: v.lng + t * (w.lng - v.lng)
+  };
+
+  return haversine(proj, p);
+}
+
+function findCommonSegment(driver, passenger, tolerance = 15) {
+  let common = [];
+
+  passenger.forEach(p => {
+    for (let i = 0; i < driver.length - 1; i++) {
+      if (distanceToSegment(p, driver[i], driver[i + 1]) <= tolerance) {
+        common.push(p);
+        break;
+      }
     }
+  });
 
-    // 4. Funkcja nasłuchiwania drugiego użytkownika
-    function watchOtherUser() {
-        const otherUser = (userId === "user1") ? "user2" : "user1";
-        db.ref('locations/' + otherUser).on('value', snapshot => {
-            const data = snapshot.val();
-            if(data && map) {
-                // usuń stary marker jeśli istnieje
-                if(otherMarker) otherMarker.setMap(null);
+  return common;
+}
 
-                otherMarker = new google.maps.Marker({
-                    position: {lat: data.lat, lng: data.lng},
-                    map: map,
-                    title: "Drugi użytkownik"
-                });
+// ================== MAPA ==================
 
-                // rysowanie wspólnego odcinka
-                if(userMarker) {
-                    if(poly) poly.setMap(null);
-                    poly = new google.maps.Polyline({
-                        path: [userMarker.getPosition(), otherMarker.getPosition()],
-                        geodesic: true,
-                        strokeColor: "#FF0000",
-                        strokeOpacity: 1.0,
-                        strokeWeight: 4,
-                        map: map
-                    });
-                }
-            }
-        });
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 15,
+    center: { lat: 52.1065, lng: 19.951 }
+  });
+
+  loadDriverRoute();
+  loadPassengerRoute();
+}
+
+function loadDriverRoute() {
+  const service = new google.maps.DirectionsService();
+
+  service.route({
+    origin: { lat: 52.1076, lng: 19.9466 },
+    destination: { lat: 52.1039, lng: 19.9586 },
+    travelMode: 'DRIVING'
+  }, (result, status) => {
+    if (status === 'OK') {
+      driverPoints = decodeRoute(result);
+      drawPath(driverPoints, '#0066FF', 5); // NIEBIESKI
+      tryCompare();
     }
+  });
+}
 
-    // 5. Inicjalizacja mapy
-    function initMap() {
-        const defaultPos = { lat: 52.106247, lng: 19.944756 }; // Łowicz
+function loadPassengerRoute() {
+  const service = new google.maps.DirectionsService();
 
-        map = new google.maps.Map(document.getElementById("map"), {
-            zoom: 14,
-            center: defaultPos
-        });
-
-        // sprawdzenie geolokalizacji
-        if(navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(position => {
-                const pos = {lat: position.coords.latitude, lng: position.coords.longitude};
-                map.setCenter(pos);
-
-                userMarker = new google.maps.Marker({
-                    position: pos,
-                    map: map,
-                    title: "Ty"
-                });
-
-                sendPosition(pos.lat, pos.lng);
-                watchOtherUser();
-
-                // aktualizacja pozycji co 5 sekund
-                setInterval(() => {
-                    navigator.geolocation.getCurrentPosition(p => {
-                        const newPos = {lat: p.coords.latitude, lng: p.coords.longitude};
-                        userMarker.setPosition(newPos);
-                        sendPosition(newPos.lat, newPos.lng);
-                    });
-                }, 5000);
-
-            }, () => {
-                // jeśli brak zgody na geolokalizację → używamy domyślnej
-                userMarker = new google.maps.Marker({
-                    position: defaultPos,
-                    map: map,
-                    title: "Ty (domyślna lokalizacja)"
-                });
-                sendPosition(defaultPos.lat, defaultPos.lng);
-                watchOtherUser();
-            });
-        } else {
-            // jeśli brak wsparcia geolokalizacji → używamy domyślnej
-            userMarker = new google.maps.Marker({
-                position: defaultPos,
-                map: map,
-                title: "Ty (domyślna lokalizacja)"
-            });
-            sendPosition(defaultPos.lat, defaultPos.lng);
-            watchOtherUser();
-        }
+  service.route({
+    origin: { lat: 52.1054, lng: 19.9522 },
+    destination: { lat: 52.1016, lng: 19.9604 },
+    travelMode: 'DRIVING'
+  }, (result, status) => {
+    if (status === 'OK') {
+      passengerPoints = decodeRoute(result);
+      drawPath(passengerPoints, '#FF0000', 4); // CZERWONY
+      tryCompare();
     }
-    </script>
+  });
+}
+
+function decodeRoute(result) {
+  const points = [];
+  result.routes[0].legs[0].steps.forEach(step => {
+    step.path.forEach(p => {
+      points.push({ lat: p.lat(), lng: p.lng() });
+    });
+  });
+  return points;
+}
+
+function drawPath(points, color, weight) {
+  new google.maps.Polyline({
+    path: points,
+    geodesic: true,
+    strokeColor: color,
+    strokeOpacity: 1,
+    strokeWeight: weight,
+    map: map
+  });
+}
+
+function tryCompare() {
+  if (driverPoints.length && passengerPoints.length) {
+    const common = findCommonSegment(driverPoints, passengerPoints);
+
+    if (common.length > 0) {
+      drawPath(common, '#00AA00', 7); // ZIELONY
+      console.log("Wspólny odcinek:", common.length, "punktów");
+    } else {
+      console.log("Brak wspólnego odcinka");
+    }
+  }
+}
+</script>
+
 </body>
 </html>
